@@ -68,7 +68,7 @@ app.post("/api/transcribe", async (req, res) => {
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.5-live-translate-preview",
       contents: {
         parts: [audioPart, textPart],
       },

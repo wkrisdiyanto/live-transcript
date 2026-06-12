@@ -36,7 +36,7 @@ export default function App() {
   // --- Recording States ---
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [mixMicrophone, setMixMicrophone] = useState(false); // overlay mic with screen share
+  const [mixMicrophone, setMixMicrophone] = useState(true); // overlay mic with screen share
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
