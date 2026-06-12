@@ -55,6 +55,7 @@ export default function App() {
   // --- Recording Engines Refs ---
   const recognitionRef = useRef<any>(null); // Chromium Web Speech-to-Text
   const recorderRef = useRef<MediaRecorder | null>(null); // Screen audio recorder
+  const audioStreamRef = useRef<MediaStream | null>(null); // Track the active audio stream to transcribe
   const isRecordingActiveRef = useRef(false); // custom loop guard
   const chunkTimeoutRef = useRef<any>(null);
   const timerIntervalRef = useRef<any>(null);
@@ -206,6 +207,11 @@ export default function App() {
       setActiveStream(null);
     }
 
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
@@ -311,13 +317,13 @@ export default function App() {
     });
   };
 
-  // Post 5s screen audio slice blobs to `/api/transcribe` for server Gemini STT processing
-  const uploadAndTranscribeChunk = async (blob: Blob) => {
+  // Post 5s audio slice blobs to `/api/transcribe` for server Gemini STT processing
+  const uploadAndTranscribeChunk = async (blob: Blob, source: TranscriptionSource) => {
     try {
       const base64Audio = await blobToBase64(blob);
       const payload = {
         audio: base64Audio,
-        mimeType: "audio/webm",
+        mimeType: blob.type || "audio/webm",
       };
 
       const res = await fetch("/api/transcribe", {
@@ -334,22 +340,31 @@ export default function App() {
 
       const data = await res.json();
       if (data.text && data.text.trim().length > 0) {
-        addSegmentText(data.text.trim(), TranscriptionSource.SCREEN, true);
+        addSegmentText(data.text.trim(), source, true);
       }
     } catch (err: any) {
       console.warn("Chunk transcription warning/error:", err.message);
     }
   };
 
-  // Cyclical Screen Audio capture lookahead loop
-  const startScreenChunkingLoop = (audioTracks: MediaStreamTrack[]) => {
+  // Cyclical Audio capture lookahead loop (for both Microphone / Screen)
+  const startAudioChunkingLoop = (audioTracks: MediaStreamTrack[], source: TranscriptionSource) => {
     if (!isRecordingActiveRef.current) return;
 
     try {
       const chunkStream = new MediaStream(audioTracks);
-      const chunkRecorder = new MediaRecorder(chunkStream, {
-        mimeType: "audio/webm",
-      });
+      
+      // Select best supported MIME/type on context browser
+      let mimeType = "audio/webm";
+      if (!MediaRecorder.isTypeSupported("audio/webm")) {
+        mimeType = "audio/mp4";
+        if (!MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = ""; // use browser default fallback
+        }
+      }
+
+      const options = mimeType ? { mimeType } : undefined;
+      const chunkRecorder = new MediaRecorder(chunkStream, options);
 
       let localChunks: Blob[] = [];
       chunkRecorder.ondataavailable = (e) => {
@@ -360,13 +375,14 @@ export default function App() {
 
       chunkRecorder.onstop = async () => {
         if (localChunks.length > 0) {
-          const combinedBlob = new Blob(localChunks, { type: "audio/webm" });
-          await uploadAndTranscribeChunk(combinedBlob);
+          const actualMime = mimeType || chunkRecorder.mimeType || "audio/webm";
+          const combinedBlob = new Blob(localChunks, { type: actualMime });
+          await uploadAndTranscribeChunk(combinedBlob, source);
         }
 
         // Restart cyclical loop next 5s chunk
         if (isRecordingActiveRef.current && !isPausedRef.current) {
-          startScreenChunkingLoop(audioTracks);
+          startAudioChunkingLoop(audioTracks, source);
         }
       };
 
@@ -380,7 +396,7 @@ export default function App() {
         }
       }, 5000);
     } catch (e) {
-      console.error("Gagal memulai perekam audio screen chunk:", e);
+      console.error("Gagal memulai perekam audio chunk:", e);
     }
   };
 
@@ -394,7 +410,6 @@ export default function App() {
 
     const useMic = sessionSource === TranscriptionSource.MIC;
     const useScreen = sessionSource === TranscriptionSource.SCREEN;
-    const isIndo = sessionLang === TranscriptionLanguage.ID;
 
     // Reset dates
     const currentISO = new Date().toISOString();
@@ -403,65 +418,16 @@ export default function App() {
 
     try {
       if (useMic) {
-        // --- MIC FLOW: Web Speech API ---
-        const SpeechRecog = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecog) {
-          throw new Error("Web Speech Recognition tidak didukung di browser ini. Harap gunakan browser Google Chrome untuk fungsionalitas penuh.");
-        }
-
+        // --- MIC FLOW: Generative AI Server-Side Robust Transcription ---
         const micMedia = await navigator.mediaDevices.getUserMedia({ audio: true });
         setActiveStream(micMedia);
-
-        const recognition = new SpeechRecog();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = isIndo ? "id-ID" : "en-US";
-
-        recognition.onstart = () => {
-          console.log("Web Speech Engine connected");
-        };
-
-        recognition.onerror = (event: any) => {
-          console.error("Web Speech error:", event);
-          if (event.error === "not-allowed") {
-            setApiError("Izin mikrofon ditolak. Harap izinkan akses mic di pengaturan browser.");
-          }
-        };
-
-        recognition.onend = () => {
-          // If the recording is active and not paused, auto restart key recognition continuously
-          if (isRecordingRef.current && !isPausedRef.current && sourceRef.current === TranscriptionSource.MIC) {
-            try {
-              recognition.start();
-            } catch (e) {}
-          }
-        };
-
-        recognition.onresult = (event: any) => {
-          if (isPausedRef.current) return;
-
-          let interimText = "";
-          let finalText = "";
-
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalText += event.results[i][0].transcript;
-            } else {
-              interimText += event.results[i][0].transcript;
-            }
-          }
-
-          if (finalText.trim()) {
-            addSegmentText(finalText.trim(), TranscriptionSource.MIC, true);
-          } else if (interimText.trim()) {
-            addSegmentText(interimText.trim(), TranscriptionSource.MIC, false);
-          }
-        };
-
-        recognitionRef.current = recognition;
+        audioStreamRef.current = micMedia;
+        
         setIsRecording(true);
         setIsPaused(false);
-        recognition.start();
+        isRecordingActiveRef.current = true;
+
+        startAudioChunkingLoop(micMedia.getAudioTracks(), TranscriptionSource.MIC);
 
       } else if (useScreen) {
         // --- SCREEN FLOW: Display Media + Gemini Multimodal ---
@@ -506,12 +472,13 @@ export default function App() {
         }
 
         setActiveStream(displayStream);
+        audioStreamRef.current = outputAudioStream;
         setIsRecording(true);
         setIsPaused(false);
         isRecordingActiveRef.current = true;
 
         // Capture independent 5-second packets
-        startScreenChunkingLoop(outputAudioStream.getAudioTracks());
+        startAudioChunkingLoop(outputAudioStream.getAudioTracks(), TranscriptionSource.SCREEN);
       }
     } catch (err: any) {
       console.error("Gagal memulai sesi perekaman:", err);
@@ -527,25 +494,16 @@ export default function App() {
     const nextPausedState = !isPaused;
     setIsPaused(nextPausedState);
 
-    if (sessionSource === TranscriptionSource.MIC) {
-      if (nextPausedState) {
-        try { recognitionRef.current.stop(); } catch (e) {}
-      } else {
-        try { recognitionRef.current.start(); } catch (e) {}
+    if (nextPausedState) {
+      // Stop current slice
+      if (chunkTimeoutRef.current) clearTimeout(chunkTimeoutRef.current);
+      if (recorderRef.current && recorderRef.current.state === "recording") {
+        recorderRef.current.stop();
       }
     } else {
-      // Screen recorder slice
-      if (nextPausedState) {
-        // Stop current slice
-        if (chunkTimeoutRef.current) clearTimeout(chunkTimeoutRef.current);
-        if (recorderRef.current && recorderRef.current.state === "recording") {
-          recorderRef.current.stop();
-        }
-      } else {
-        // Resume cyclical loop
-        if (activeStream) {
-          startScreenChunkingLoop(activeStream.getAudioTracks());
-        }
+      // Resume cyclical loop
+      if (audioStreamRef.current) {
+        startAudioChunkingLoop(audioStreamRef.current.getAudioTracks(), sessionSource);
       }
     }
   };

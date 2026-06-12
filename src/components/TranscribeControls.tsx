@@ -91,19 +91,27 @@ export default function TranscribeControls({
 
           {/* Context Advisory Tip */}
           {source === TranscriptionSource.SCREEN && (
-            <div id="tip-screen-share" className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-xl flex gap-2.5 items-start">
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <div className="text-[11px] text-amber-200/90 leading-normal">
-                <span className="font-semibold">Saran Pembagian Layar:</span> Pilih opsi tab browser dan <span className="font-bold underline">pastikan untuk mencentang ikon &quot;Share audio&quot; (Bagikan audio)</span> di bagian kiri bawah jendela pemilihan layar sistem agar video/webinar bisa direkam audionya.
+            <div id="tip-screen-share" className="space-y-2">
+              <div className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-xl flex gap-2.5 items-start">
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-amber-200/90 leading-normal">
+                  <span className="font-semibold">Saran Pembagian Layar:</span> Pilih opsi tab browser atau layar penuh dan <span className="font-bold underline">pastikan untuk mencentang &quot;Bagikan audio sistem / tab&quot; (Share audio)</span> agar audio terekam oleh AI.
+                </div>
+              </div>
+              <div className="p-3 bg-rose-950/20 border border-rose-900/40 rounded-xl flex gap-2.5 items-start">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-rose-200/90 leading-normal">
+                  <span className="font-semibold">⚠️ INFO PERIZINAN (Permissions Policy):</span> Jika melihat galat <span className="font-mono">display-capture disallowed</span>, pastikan Anda membuka aplikasi ini di <span className="font-bold underline">Tab Baru</span> (bukan di dalam panel pratinjau / iframe). Browser melarang fitur perekam layar di dalam frame demi keamanan.
+                </div>
               </div>
             </div>
           )}
 
           {source === TranscriptionSource.MIC && (
-            <div id="tip-web-speech" className="p-3 bg-blue-950/20 border border-blue-900/40 rounded-xl flex gap-2.5 items-start">
-              <Mic className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-              <div className="text-[11px] text-blue-200/95 leading-normal">
-                <span className="font-semibold">Mesin Google Speech-to-Text:</span> Memanfaatkan mesin pengenal suara cloud Google native di browser Anda untuk transkripsi super cepat tanpa jeda dan dukungan tanda baca cerdas otomatis.
+            <div id="tip-web-speech" className="p-3 bg-indigo-950/20 border border-indigo-900/40 rounded-xl flex gap-2.5 items-start">
+              <Mic className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-indigo-200/95 leading-normal">
+                <span className="font-semibold">Server-Side Gemini STT:</span> Merekam suara Anda dari mikrofon dan mentranskripsinya secara real-time via Gemini AI yang sangat akurat, mendukung Bahasa Indonesia dan Inggris secara mulus.
               </div>
             </div>
           )}

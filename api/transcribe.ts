@@ -45,9 +45,9 @@ export default async function handler(req: any, res: any) {
     };
 
     const textPart = {
-      text: "Transcribe the spoken Indonesian or English words in this audio clip exactly and literally. " +
-            "Do NOT summarize, do NOT add comments/annotations (like 'Noise', 'Sigh', or bracketed texts), and do NOT add intro/outro speech. " +
-            "If there is no speech, human voice, or only noise/silence inside the audio, reply with absolutely nothing (empty text).",
+      text: "Transcribe any spoken Indonesian or English words in this audio clip exactly and literally. " +
+            "Do NOT summarize, do NOT add commentaries/annotations (like 'Noise', 'Sigh', or bracketed texts). " +
+            "If there are words spoken, transcribe them. If there is absolutely no speech, human voice, or only background mechanical noise, reply with absolutely nothing (empty text).",
     };
 
     const response = await ai.models.generateContent({
