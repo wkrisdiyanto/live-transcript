@@ -1,0 +1,10 @@
+{
+  "name": "Real-Time Transcribe & AI Summary",
+  "description": "Website transkrpsi suara real-time (mikrofon & audio screen share) terintegrasi teknologi Speech-to-Text dengan ringkasan otomatis menggunakan model AI Gemini.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
